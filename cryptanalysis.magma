@@ -1,0 +1,605 @@
+// Created by Maltose
+// On 03/03/2022
+
+
+
+// Task 1
+//1a
+// FromRtoZn(gamma::RngMPolResElt) -> SeqEnum
+// rewrites γ ∈ R as a tuple in Zn.
+//
+
+testfile_1 := "testfile.txt";
+
+function FromRtoZn(gamma)
+    R := Parent(gamma);
+    r := Rank(R);
+    ans := [];
+    for elt in CartesianPower({0, 1}, r) do
+        tmp := gamma;
+        for i in [1..r] do
+            tmp := Coefficient(tmp, R.i, elt[i]);
+        end for;
+        //print "elt is", tmp;
+        ans := ans cat [tmp];
+    end for;
+    return ans;
+end function;
+
+// Zxy<x, y> := PolynomialRing(Integers(), 2);
+// R<alp, bet> := quo<Zxy | [x^2 - 13, y^2 - 17]>;
+// a := alp^3 + bet^3 + (alp - 2*bet)^4;
+// FromRtoZn(a);
+// a;
+
+
+//1b
+// FromZntoR(gamma::SeqEnum, R::RngMPolRes) -> RngMPolResElt
+// converts a tuple (γe)e∈{0,1}r into the corresponding element of R
+function FromZntoR(gamma, R)
+    ans := 0;
+    r := Rank(R);
+    cnt := 1;
+    for elt in CartesianPower({0, 1}, r) do
+        tmp := 1;
+        for i in [1..r] do
+            tmp *:= R.i ^ elt[i];
+        end for;
+        ans +:= gamma[cnt] * tmp;
+        cnt +:= 1;
+    end for;
+    return ans;
+end function;
+
+// Zxy<x, y> := PolynomialRing(Integers(), 2);
+// R<alp, bet> := quo<Zxy | [x^2 - 13, y^2 - 17]>;
+// a := [13, 2, 15, 6];
+// FromZntoR(a, R);
+// a;
+
+//Task 2
+// 2b
+// Nrm(gamma::RngMPolResElt) -> RngIntElt
+// computes N(gamma)
+function Nrm(gamma)
+    R := (Parent(gamma));
+    r := Rank(R);
+    ans := 1;
+    for elt in CartesianPower({0,1},r) do
+        tmp := gamma;
+        for i in [1..r] do
+            if elt[i] eq 1 then
+                tmp := tmp - 2 * R.i * Coefficient(tmp, R.i, 1);
+            end if;
+        end for;
+        ans := ans * tmp;
+    end for;
+    return Integers() ! ans;
+end function;
+
+// Zxy<x, y,z> := PolynomialRing(Integers(), 3);
+// R<alp, bet,cit> := quo<Zxy | [x^2 - 2, y^2 -3, z^2-5]>;
+// a := alp*bet*cit - alp*bet + bet*cit - alp*cit+ alp-bet+cit -1;
+// //FromRtoZn(a);
+// norm_sample := Nrm(a);
+// print norm_sample;
+
+// print "length is",Sqrt(1+4+9+25+100+15^2+36+30^2);
+
+//Task 3
+
+
+function NrmPrime(gamma)
+    R := (Parent(gamma));
+    r := Rank(R);
+    ans := 1;
+    skip := 1;
+    for elt in CartesianPower({0,1},r) do
+        tmp := gamma;
+        for i in [1..r] do
+            if elt[i] eq 1 then
+                tmp := tmp - 2 * R.i * Coefficient(tmp, R.i, 1);
+            end if;
+        end for;
+        if skip eq 1 then
+            tmp := 1;
+        end if;
+        ans := ans * tmp;
+        skip := skip + 1;
+    end for;
+    return ans;
+end function;
+
+// Zxy<x, y> := PolynomialRing(Integers(), 2);
+// R<alp, bet> := quo<Zxy | [x^2 - 13, y^2 - 17]>;
+// a := alp^3 + bet^3 + (alp - 2*bet)^4;
+// //FromRtoZn(a);
+// norm_sample := NrmPrime(a);
+
+//3a
+// KeyGen(p::SeqEnum, B1::RngIntElt) 
+// -> RngIntElt, RngMPolResElt, RngMPolResElt
+
+// inputs
+// p : the array of primes [p1, p2, . . . , pr]
+// B1 : the bound B1 
+// outputs
+// q : public key 
+// and secret keys γ, Z(γ).
+
+function KeyGen(p,B1)
+    q := 2;
+    r := #p;
+    n := 2^(r);
+    Zxy<x> := PolynomialRing(Integers(),r);
+    R<alp> := quo<Zxy | [(Zxy.i^2- p[i]): i in [1..r]]>; 
+    repeat 
+        // generate random Zn
+        seq := [Random (-B1,B1): i in [1..n]];
+        gamma := FromZntoR(seq,R);
+        q := Abs(Nrm(gamma));
+        //print "seq is", seq, Category(q), q;
+    until IsPrime(q) and IsOdd(q);
+    s := q/Nrm(gamma);
+    z_gamma := Integers()! s * NrmPrime(gamma);
+    return Integers() ! q,gamma,z_gamma;
+end function;
+
+
+
+
+//3b
+// Encrypt(M::SeqEnum, p::SeqEnum, q::RngIntElt, B2::RngIntElt) 
+// -> RngIntElt
+
+//inputs
+// message M ∈ {0, 1}n
+// [p1, p2, . . . , pr]
+// the public key q 
+//the bound B2
+//outputs
+// encryption of M.
+function Encrypt(M,p,q,B2)
+    rho := 2;
+    r := #p;
+    n := 2^(r);
+    Zxy<x> := PolynomialRing(Integers(),r);
+    R<alp> := quo<Zxy | [(Zxy.i^2- p[i]): i in [1..r]]>; //TODO: 怎么遍历p_i和x_i啊
+    //TODO: do not need repeat
+    seq := [Random (-B2,B2): i in [1..n]];
+    rho := FromZntoR(seq,R);  
+    map := [];
+    for i in [1..r] do
+        is_square, tmp := IsSquare(GF(q) ! p[i]);
+        map := map cat [Integers() ! tmp];
+    end for;
+    c :=  FromZntoR(M,R) + Integers()! 2 * rho;
+    //c :=  FromZntoR(M,R);
+    //find the image in THE MAP
+    //print "map is", map;
+    phi := hom<R->GF(q) | map>;
+    //print "c1 is",c;
+    return Integers() ! phi(c);
+end function;
+
+
+
+//3c
+// Decrypt(C::RngIntElt, q::RngIntElt, gamma::RngMPolResElt, Z::RngMPolResElt) 
+//-> SeqEnum
+
+// a ciphertext C
+// the public key q
+// the private keys γ, Z(γ)
+//outputs the corresponding decryption of C.
+function Decrypt(C,q,gamma,Z)  
+    n := 2^(Rank(Parent(gamma)));
+    f := [];
+    Z_ZN := FromRtoZn(Z);
+    for i in [1..n] do
+        f := f cat [Round(C * Integers() ! Z_ZN[i] / q)];
+    end for;
+    // TODO: 注意这里怎么计算f,gamma
+    c := C - FromZntoR(f,Parent(gamma)) * gamma;
+    M := [];
+    c_Zn := FromRtoZn(c);
+    for i in [1..n] do 
+        M := M cat [Integers()! c_Zn[i] mod 2];
+    end for;
+    return M;
+end function;
+
+
+
+// p := [3,5,13];
+// B1 := 64;
+// B2 := 1;
+// q, gamma,z_gamma := KeyGen(p,B1);
+// q, gamma, z_gamma;
+// M := [0,1,0,0,1,0,1,1];
+// C := Encrypt(M,p,q,B2);
+// M_prime := Decrypt(C,q,gamma,z_gamma);
+// print "C is";
+// print C;
+// print "q is";
+// print q;
+// print "M is";
+// print M, M_prime;
+
+
+
+
+
+
+
+// Task 4
+// a
+// input : r:: RngIntEle
+procedure Task4a(r)
+    print "r is",r;
+    B2 := 1;
+    k_num := 10^(7-r);
+    //k_num := 4;
+    B1 := 2^(2*Round(Sqrt(2^r)));
+    p := [2];
+    p_cur := 2;
+    for i in [2..r] do 
+        p_cur := NextPrime(p_cur : Proof := false);
+        p := p cat [p_cur];
+    end for;
+    failed_time := 0;
+    success_time := 0;
+    // Write(testfile_1,"p is");
+    // Write(testfile_1,p);
+    for i in [1..k_num] do
+        q, gamma, z_gamma := KeyGen(p,B1);
+        // Write(testfile_1,"q is");
+        // Write(testfile_1,q);
+        //print "gamma is",gamma;
+        // Write(testfile_1,gamma);
+        //print "z_gamma is",z_gamma;
+        // Write(testfile_1,z_gamma);
+        //generate random M
+        M := [Random([0,1]) : i in [1..(2^r)]];
+        //verify
+        C := Encrypt(M,p,q,B2);
+        C_decrypt := Decrypt(C,q,gamma,z_gamma);
+        //feed the streams into file "task4a_results.txt"
+        // Write(testfile_1,"message is");
+        // Write(testfile_1,M);
+        // Write(testfile_1,"cipher is");
+        // Write(testfile_1,C);
+        // Write(testfile_1,"Decrypted Ciphertext is");
+        // Write(testfile_1,C_decrypt);
+        if M ne C_decrypt then
+            failed_time := failed_time +1;
+            Write(testfile_1,"encryption scheme failed!");
+            print "failed M is",M;
+            print "failed decryption is",C_decrypt;
+            //print "encryption scheme failed!";
+        else 
+            success_time := success_time +1;
+            Write(testfile_1,"encryption scheme success!");
+            //print "encryption scheme success!";
+        end if;
+    end for;
+    print "failed times are",failed_time;
+    print "successful times are",success_time;
+    print "failure frequency is", failed_time/k_num;
+end procedure;
+
+//Task4a(3);
+Task4a(6);
+
+
+
+//Task 5
+// 5b
+// taking as
+//input
+//[p1, p2, . . . , pr]
+//the public key q
+
+//output
+// L : lat
+function qLattice(p,q)
+    r := #p;
+    n := 2^r;
+    Zxy<x> := PolynomialRing(Integers(),r);
+    R<alp> := quo<Zxy | [(Zxy.i^2- p[i]): i in [1..r]]>; 
+    seq := [];
+    basis_m := []; //unit x
+    for elt in CartesianPower({0,1},r) do
+        tmp_seq := [];
+        for i in [1..r] do
+            if elt[i] eq 1 then
+                tmp_seq := tmp_seq cat [R.i];
+            end if;
+        end for;
+        // tmp_seq := [R.i * elt[i] : i in [1..r]];
+        if #tmp_seq eq 0 then
+            basis_m := basis_m cat [1];
+        else 
+            basis_m := basis_m cat [&*tmp_seq];
+        end if;
+    end for;
+
+    //the first block
+    gamma := q;
+    for i in [1..n] do
+        tmp := basis_m[i] * gamma;
+        seq := seq cat [FromRtoZn(tmp)];
+    end for;
+    // print "L_q is", Basis(Lattice(Matrix(Integers(),n,n,seq)));
+    
+    for i in [1..r] do //the next r n*n blocks
+        is_square, squ := IsSquare(GF(q) ! p[i]);
+        gamma := R.i - Integers() ! squ; //TODO : alpha_i - a_i
+        //print "generator is",gamma;
+        for j in [1..n] do
+            tmp := basis_m[j] * gamma;
+            seq := seq cat [FromRtoZn(tmp)];
+        end for;
+    end for;
+    A := Matrix(Integers(),(r+1)*n,n,seq);
+    return Lattice(A);
+end function;
+
+
+// p := [3,5,13];
+// B1 := 64;
+// q, gamma, z_gamma := KeyGen(p,B1);
+// Lat := qLattice(p,q);
+// print "Lat is";
+// print Lat;
+// // x := ElementToSequence(ShortestVectors(Lat)[1]);
+// // x := [Abs(x[i]):i in [1..8]];
+// print x;
+//print z_gamma;
+
+
+//5c
+//frequency of successful attacks
+procedure Task5c(r)
+    print "r is",r;
+    B2 := 1;
+    k_num := 10^(7-r);
+    n := 2^r;
+    B1 := 2^(2*Round(Sqrt(2^r)));
+    p := [2];
+    p_cur := 2;
+    for i in [2..r] do 
+        p_cur := NextPrime(p_cur : Proof := false);
+        p := p cat [p_cur];
+    end for;
+    success_time := 0;
+    for i in [1..k_num] do
+        q, gamma, z_gamma := KeyGen(p,B1);
+        lat := qLattice(p,q);
+        gamma_new := ElementToSequence(ShortestVectors(lat)[1]);
+        gamma_new := [Abs(gamma_new[i]):i in [1..n]];
+        gamma_pri := FromRtoZn(gamma);
+        gamma_pri := [Abs(Integers()!gamma_pri[i]):i in [1..n]];
+        if gamma_new ne gamma_pri then
+            Write(testfile_1,"attack failed!");
+        else 
+            print("attack success!!!");
+            success_time := success_time +1;
+            Write(testfile_1,"attack success!");
+        end if;
+    end for;
+    print "successful times are",success_time;
+    print "success frequency is", success_time/k_num;
+end procedure;
+
+Task5c(6);
+
+//Task 6
+function qLatticeDecrypt(C,p,q)
+    r := #p;
+    n := 2^r;
+    Zxy<x> := PolynomialRing(Integers(),r);
+    R<alp> := quo<Zxy | [(Zxy.i^2- p[i]): i in [1..r]]>; 
+    // calculate a_i
+    a := [];
+    for i in [1..r] do
+        is_square, squ := IsSquare(GF(q) ! p[i]);
+        a := a cat [Integers() ! squ]; 
+    end for;
+    //calculate the last column
+    basis_m := [];
+    for elt in CartesianPower({0,1},r) do
+        tmp_seq := 1;
+        for i in [1..r] do
+            if elt[i] eq 1 then
+                tmp_seq := tmp_seq * a[i];
+            end if;
+        end for;
+        basis_m := basis_m cat [tmp_seq mod q];
+    end for;
+
+    // n+1
+    seq := [];
+    for j in [1..n] do
+        if j eq 1 then
+            tmp := [0:i in [1..n]] cat [q];
+        else 
+            tmp := [ 0 :i in [1..j-1]];
+            tmp := tmp cat [1];
+            tmp := tmp cat [ 0 :i in [1..n-j]];
+            tmp := tmp cat [basis_m[j]];
+        end if;
+        seq := seq cat tmp;
+    end for;
+    tmp := [1] cat [0:i in [1..n-1]] cat [C];
+    seq := seq cat tmp;
+
+    //print seq;
+    A := Matrix(Integers(),n+1,n+1,seq);
+    lat := Lattice(A);
+    v :=  ElementToSequence(ShortestVectors(lat)[1]);
+    print "v is",v;
+    M := [];
+    for i in [1..n] do 
+        if i eq 1 then
+            M := M cat [Integers()!(v[1] + v[n+1] -1) mod 2];
+        else
+        M := M cat [Integers()!v[i] mod 2];
+        end if;
+    end for;
+    return M;
+end function;
+
+// function qLatticeDecrypt(C,p,q)
+//     lat := qLattice(p,q);
+//     r := #p;
+//     n := 2^r;
+//     Zxy<x> := PolynomialRing(Integers(),r);
+//     R<alp> := quo<Zxy | [(Zxy.i^2- p[i]): i in [1..r]]>; 
+//     gamma := FromZntoR(ElementToSequence(Basis(lat)[1]),R); // lattice gamma
+//     print "lattice gamma is",gamma;
+//     s := q/Nrm(gamma);
+//     // print "lattice z_gamma is",s;
+//     // print NrmPrime(gamma);
+//     z_gamma := Integers()! s * NrmPrime(gamma);
+//     // print "z in lattice",Vector(FromRtoZn(z_gamma));
+//     // print Basis(lat);
+//     // bo := Vector(FromRtoZn(gamma)) in lat;
+//     // print "gamma in lattice",bo;
+//     // print "lattice z_gamma is",z_gamma;
+//     M := Decrypt(C,q,gamma,z_gamma);
+//     return M;
+// end function;
+
+
+//test
+// p := [3,5,7,11];
+// B1 := 256; B2:= 1;
+// M := [1,0,0,1, 1,0,0,1, 0,1,0,0, 0,1,1,1];
+// q, gamma, z_gamma := KeyGen(p,B1);
+
+// C := Encrypt(M,p,q,B2);
+// M1 := Decrypt(C,q,gamma,z_gamma);
+// M2 := qLatticeDecrypt(C,p,q);
+
+// print "M is",M;
+// print "M1 is",M1;
+// print "M2 is",M2;
+// print "z_gamma is",z_gamma;
+// print "\n\n\n\n Attack!",M1 eq M2;
+
+
+//Task 7
+//7b
+//input a prime number p 
+// returns integers c, d such that c + dα is a unit of R different from ±1.
+
+function SomeUnit(p)
+    RR := RealField(100);
+    alp := Sqrt(RR !p);
+    pi := Pi(RR);
+    B := 1;
+    while true do
+        lat := Lattice(Matrix(RR, 2, 2,[B^2 * p, alp, B^2 * alp, 0]));
+        seq := (ShortestVectors(lat)[1]);
+        // print lat;
+        d := Round(seq[2] / alp);
+        c := Round((seq[1] - d * p * B^2)/(alp * B^2));
+        nrm := c^2- p*d^2;
+        if Abs(c+d*alp) ne 1 and Abs(nrm) eq 1 then
+            B := Round(2 / (Sqrt(pi) * Abs(c + d*alp))) + 1;
+            return c, d;
+        end if;
+        //TODO: find the increase speed of B
+        B := B *2;
+    end while;
+end function;
+
+//Bounded Unit Generator
+function SomeBoundUnit(p, B)
+    RR := RealField(100);
+    alp := Sqrt(RR !p);
+    pi := Pi(RR);
+    while true do
+        lat := Lattice(Matrix(RR, 2, 2,[B^2 * p, alp, B^2 * alp, 0]));
+        seq := (ShortestVectors(lat)[1]);
+        // print lat;
+        d := Round(seq[2] / alp);
+        c := Round((seq[1] - d * p * B^2)/(alp * B^2));
+        nrm := c^2- p*d^2;
+        if Abs(c+d*alp) ne 1 and Abs(nrm) eq 1 then
+            B := Round(2 / (Sqrt(pi) * Abs(c + d*alp))) + 1;
+            return c, d, B;
+        end if;
+        //TODO: find the increase speed of B
+        B := B *2;
+        // if B gt 2^200 then
+        //     return 0;
+        // end if;
+    end while;
+end function;
+
+// epsilon^m, epsilon^n
+function PositiveGCD(a,b)
+    while true do
+        // a > b
+        if a[1] lt b[1] then
+            tmp := a;
+            a := b;
+            b := tmp;
+        end if;
+        tmp_div := a div b;
+        a := tmp_div;
+        if tmp_div[1] eq 1 and tmp_div[2] eq 0 then
+            return b;
+        end if;
+    end while;
+end function;
+
+
+
+//Task 8
+function SmallestUnit(p,t)
+    RR := RealField(100);
+    R<alp> := QuadraticField(p);
+    M := EquationOrder(R);
+    //find t units where gcd(a1,a2,..at) =1
+
+    //TODO: the first SomeUnit
+    B := 1; 
+    c_i, d_i, B := SomeBoundUnit(p,B);
+    //print c_i, d_i; //test
+    w := M!(c_i+d_i*alp);
+    //common divisor
+    comp := [w];
+    for i in [2..t] do;
+        // TODO:make sure c,d in M
+        c_i, d_i, B := SomeBoundUnit(p, B);
+        //print c_i, d_i; //test
+        comp := comp cat [M!(c_i+d_i*alp)];
+        //w := PositiveGCD(w,M!(c_i+d_i*alp));
+    end for;
+    w := PositiveGCD(comp[1],comp[t]);
+    if t gt 2 then
+        for i in [t-1..2] do
+            w := PositiveGCD(w,comp[i]);
+        end for;
+    end if;
+    return w[1],w[2];
+end function;
+
+p := 211;
+print "some unit is", SomeUnit(p);
+x1,x2 := SmallestUnit(p, 3);
+print "our result is",x1,x2;
+R := EquationOrder(QuadraticField(p));
+print "magma result is",FundamentalUnit(R);
+
+
+
+
+
+
+
+
+
